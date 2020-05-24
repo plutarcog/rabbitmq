@@ -1,0 +1,113 @@
+version: "3"
+services:
+
+  rabbitNode1:
+    image: plutarcog/rabbitmq:c7-management
+    container_name: rabbitNode1
+    hostname: node1.rabbit
+    volumes:
+      - ./ha-entrypoint.sh:/usr/local/bin/ha-entrypoint.sh
+    entrypoint: /usr/local/bin/ha-entrypoint.sh
+    extra_hosts:
+      - "node2.rabbit:192.168.20.12"
+      - "node3.rabbit:192.168.20.13"
+    environment:
+      - RABBITMQ_ERLANG_COOKIE=${RABBITMQ_ERLANG_COOKIE}
+      - RABBITMQ_USE_LONGNAME=${RABBITMQ_USE_LONGNAME}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_DEFAULT_VHOST}
+    ports:
+      - "4369:4369"
+      - "5672:5672"
+      - "15672:15672"
+      - "25672:25672"
+      - "35672:35672"
+    networks:
+      cluster:
+        ipv4_address: 192.168.20.11
+  
+  rabbitNode2:
+    image: plutarcog/rabbitmq:c7-management
+    container_name: rabbitNode2
+    hostname: node2.rabbit
+    depends_on:
+      - rabbitNode1
+    volumes:
+      - ./cluster-entrypoint.sh:/usr/local/bin/cluster-entrypoint.sh
+    entrypoint: /usr/local/bin/cluster-entrypoint.sh
+    extra_hosts:
+      - "node1.rabbit:192.168.20.11"
+      - "node3.rabbit:192.168.20.13"
+    environment:
+      - RABBITMQ_ERLANG_COOKIE=${RABBITMQ_ERLANG_COOKIE}
+      - RABBITMQ_USE_LONGNAME=${RABBITMQ_USE_LONGNAME}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_DEFAULT_VHOST}
+    ports:
+      - "4370:4369"
+      - "5673:5672"
+      - "15673:15672"
+      - "25673:25672"
+      - "35673:35673"
+    networks:
+      cluster:
+        ipv4_address: 192.168.20.12
+
+  rabbitNode3:
+    image: plutarcog/rabbitmq:c7-management
+    container_name: rabbitNode3
+    hostname: node3.rabbit
+    depends_on:
+      - rabbitNode1
+    volumes:
+      - ./cluster-entrypoint.sh:/usr/local/bin/cluster-entrypoint.sh
+    entrypoint: /usr/local/bin/cluster-entrypoint.sh
+    extra_hosts:
+      - "node1.rabbit:192.168.20.11"
+      - "node2.rabbit:192.168.20.12"
+    environment:
+      - RABBITMQ_ERLANG_COOKIE=${RABBITMQ_ERLANG_COOKIE}
+      - RABBITMQ_USE_LONGNAME=${RABBITMQ_USE_LONGNAME}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_DEFAULT_VHOST}
+    ports:
+      - "4371:4369"
+      - "5674:5672"
+      - "15674:15672"
+      - "25674:25672"
+      - "35674:35672"
+    networks:
+      cluster:
+        ipv4_address: 192.168.20.13
+
+  haproxy:
+    image: plutarcog/haproxy:c7
+    container_name: haproxy-rmq
+    hostname: haproxy-rmq
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - rabbitNode1
+      - rabbitNode2
+      - rabbitNode3
+    extra_hosts:
+      - "node1.rabbit:192.168.20.11"
+      - "node2.rabbit:192.168.20.12"
+      - "node3.rabbit:192.168.20.13"
+    ports:
+      - 1936:1936
+      - 15675:15675
+      - 5675:5675
+    networks:
+      cluster:
+        ipv4_address: 192.168.20.10
+
+networks:
+  cluster:
+    ipam:
+      driver: default
+      config:
+       - subnet: 192.168.20.0/24
